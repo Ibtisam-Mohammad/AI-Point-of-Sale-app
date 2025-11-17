@@ -1,0 +1,8 @@
+{
+  "name": "VentiPOS",
+  "description": "A smart, voice-driven Point of Sale app that converts spoken orders into structured, itemized lists.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}

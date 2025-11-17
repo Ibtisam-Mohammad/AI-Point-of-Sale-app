@@ -1,0 +1,315 @@
+<div class="space-y-8">
+  <!-- Header and Actions -->
+  <div class="flex justify-between items-center">
+    <h2 class="text-3xl font-bold text-gray-800">Inventory Management</h2>
+    <div class="flex space-x-3">
+      <button (click)="startVoiceAdd()" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors flex items-center space-x-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4z" />
+          <path fill-rule="evenodd" d="M4 10a1 1 0 00-1 1v1a4 4 0 004 4h4a4 4 0 004-4v-1a1 1 0 10-2 0v1a2 2 0 01-2 2H7a2 2 0 01-2-2v-1a1 1 0 00-1-1z" clip-rule="evenodd" />
+        </svg>
+        <span>Add by Voice</span>
+      </button>
+      <button (click)="openNewProductForm()" class="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors flex items-center space-x-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+        </svg>
+        <span>Add Product</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- AI-Powered Stock Update -->
+  <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+    <h3 class="text-xl font-semibold mb-2 text-gray-800">AI-Powered Stock Update</h3>
+    <p class="text-gray-500 mb-4">Upload an image of a receipt or new inventory to automatically update stock levels.</p>
+    <div class="flex items-center space-x-4">
+      <label for="inventory-image-upload" class="cursor-pointer px-4 py-2 bg-slate-700 text-white font-semibold rounded-lg shadow-md hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 transition-colors flex items-center space-x-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+        <span>Upload Image</span>
+      </label>
+      <input id="inventory-image-upload" type="file" class="hidden" (change)="onFileSelected($event)" accept="image/*">
+      @if (isProcessingImage()) {
+      <div class="flex items-center space-x-2 text-gray-600">
+        <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900"></div>
+        <span>Processing image...</span>
+      </div>
+      }
+    </div>
+
+    @if (imageProcessingError(); as error) {
+    <div class="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+      <strong>Error:</strong> {{ error }}
+    </div>
+    }
+
+    @if (parsedImageResult(); as result) {
+    <div class="mt-6 border-t pt-4">
+      <h4 class="text-lg font-semibold mb-2">Image Analysis Results</h4>
+
+      <!-- Recognized Items -->
+      @if (result.recognizedItems.length > 0) {
+      <div class="mb-4">
+        <h5 class="font-semibold text-green-700">Recognized Items</h5>
+        <p class="text-sm text-gray-500 mb-2">These items were found in your inventory and can be added to stock automatically.</p>
+        <ul class="divide-y divide-gray-200">
+          @for (item of result.recognizedItems; track $index) {
+          <li class="py-2 flex justify-between items-center">
+            <span>{{ item.itemName }}</span>
+            <span class="font-mono bg-gray-100 px-2 py-1 rounded-md text-sm">Qty: {{ item.quantity }}</span>
+          </li>
+          }
+        </ul>
+        <div class="mt-4 flex space-x-2">
+          <button (click)="addRecognizedItemsToStock()" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-sm hover:bg-green-700">Add to Stock</button>
+          <button (click)="dismissImageResults()" class="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300">Dismiss</button>
+        </div>
+      </div>
+      }
+
+      <!-- Unrecognized Items -->
+      @if (result.unrecognizedItems.length > 0) {
+      <div class="mb-4">
+        <h5 class="font-semibold text-orange-700">Unrecognized Items</h5>
+        <p class="text-sm text-gray-500 mb-2">These items were not found in your inventory. You can add them as new products.</p>
+        <ul class="divide-y divide-gray-200">
+          @for (item of result.unrecognizedItems; track $index) {
+          <li class="py-2 flex justify-between items-center">
+            <div>
+              <span>{{ item.itemName }}</span>
+              @if (item.price) {
+              <span class="text-xs text-gray-500 ml-2">({{ item.price | currency }})</span>
+              }
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="font-mono bg-gray-100 px-2 py-1 rounded-md text-sm">Qty: {{ item.quantity }}</span>
+              <button (click)="addNewProductFromUnrecognized(item)" title="Add as new product" class="px-2 py-1 bg-blue-500 text-white text-xs font-semibold rounded-md hover:bg-blue-600">+</button>
+            </div>
+          </li>
+          }
+        </ul>
+      </div>
+      }
+      @if (result.recognizedItems.length === 0 && result.unrecognizedItems.length === 0) {
+      <p class="text-gray-600">No items were recognized in the image.</p>
+      <button (click)="dismissImageResults()" class="mt-2 px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300">Dismiss</button>
+      }
+    </div>
+    }
+  </div>
+
+  <!-- Product List -->
+  <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+    <h3 class="text-xl font-semibold mb-4 text-gray-800">Product List</h3>
+    <div class="space-y-4">
+      @for (product of products(); track product.id) {
+      <div class="border border-slate-200 rounded-lg p-4">
+        <div class="flex justify-between items-center mb-3">
+          <h4 class="text-lg font-semibold text-gray-800">{{ product.name }}</h4>
+          <div class="flex items-center space-x-2">
+            <button (click)="openNewVariantForm(product)" class="text-sm px-3 py-1 bg-emerald-100 text-emerald-800 rounded-md hover:bg-emerald-200">Add Variant</button>
+            <button (click)="openEditProductForm(product)" class="text-sm px-3 py-1 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300">Edit Name</button>
+            <button (click)="deleteProduct(product.id)" class="text-sm px-3 py-1 bg-red-100 text-red-800 rounded-md hover:bg-red-200">Delete</button>
+          </div>
+        </div>
+
+        <!-- Variants Table -->
+        @if (product.variants.length > 0) {
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+              <tr>
+                <th class="py-2 px-3 text-left font-medium">Variant</th>
+                <th class="py-2 px-3 text-left font-medium">Price</th>
+                <th class="py-2 px-3 text-left font-medium">Cost</th>
+                <th class="py-2 px-3 text-left font-medium">Stock</th>
+                <th class="py-2 px-3 text-left font-medium">Barcode</th>
+                <th class="py-2 px-3 text-right font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+              @for (variant of product.variants; track variant.id; let isOdd = $odd) {
+              <tr [class.bg-slate-50]="isOdd">
+                <td class="py-2 px-3 font-medium text-slate-800">{{ variant.name }}</td>
+                <td class="py-2 px-3 text-slate-600">{{ variant.price | currency }}</td>
+                <td class="py-2 px-3 text-slate-600">{{ variant.cost | currency }}</td>
+                <td class="py-2 px-3 font-mono text-slate-600" [class.text-red-600]="variant.stock <= 10">{{ variant.stock }}</td>
+                <td class="py-2 px-3 font-mono text-slate-600">{{ variant.barcode || 'N/A' }}</td>
+                <td class="py-2 px-3 text-right">
+                  <button (click)="openEditVariantForm(product, variant)" class="text-xs px-2 py-1 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300">Edit</button>
+                  <button (click)="deleteVariant(product.id, variant.id)" class="ml-2 text-xs px-2 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200">Delete</button>
+                </td>
+              </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        } @else {
+        <p class="text-slate-500 text-sm italic">No variants defined for this product.</p>
+        }
+      </div>
+      } @empty {
+      <p class="text-center text-slate-500 py-4">No products in inventory. Click "Add Product" to get started.</p>
+      }
+    </div>
+  </div>
+
+  <!-- Product Form Modal -->
+  @if (isProductFormOpen()) {
+  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+       <div class="flex justify-between items-center pb-3 border-b border-slate-200">
+        <h3 class="text-xl font-semibold">{{ editingProduct() ? 'Edit Product Name' : 'Add New Product' }}</h3>
+        <button (click)="closeProductForm()" class="text-slate-400 hover:text-slate-600">&times;</button>
+       </div>
+      <form [formGroup]="productForm" (ngSubmit)="saveProduct()" class="mt-4">
+        <div class="mb-4">
+          <label for="productName" class="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+          <input id="productName" type="text" formControlName="name" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="flex justify-end space-x-3 pt-4 border-t border-slate-200">
+          <button type="button" (click)="closeProductForm()" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Cancel</button>
+          <button type="submit" [disabled]="productForm.invalid" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-slate-400">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  }
+
+  <!-- Variant Form Modal -->
+  @if (isVariantFormOpen()) {
+  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-200">
+        <h3 class="text-xl font-semibold">{{ editingVariant() ? 'Edit Variant' : 'Add New Variant' }}</h3>
+         <button (click)="closeVariantForm()" class="text-slate-400 hover:text-slate-600">&times;</button>
+      </div>
+      <form [formGroup]="variantForm" (ngSubmit)="saveVariant()" class="mt-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="mb-4">
+            <label for="variantName" class="block text-sm font-medium text-gray-700 mb-1">Variant Name</label>
+            <input id="variantName" type="text" formControlName="name" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div class="mb-4">
+            <label for="variantPrice" class="block text-sm font-medium text-gray-700 mb-1">Price</label>
+            <input id="variantPrice" type="number" step="0.01" formControlName="price" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div class="mb-4">
+            <label for="variantCost" class="block text-sm font-medium text-gray-700 mb-1">Cost</label>
+            <input id="variantCost" type="number" step="0.01" formControlName="cost" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div class="mb-4">
+            <label for="variantStock" class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+            <input id="variantStock" type="number" formControlName="stock" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div class="mb-4 col-span-1 md:col-span-2">
+            <label for="variantBarcode" class="block text-sm font-medium text-gray-700 mb-1">Barcode (UPC/EAN)</label>
+            <input id="variantBarcode" type="text" formControlName="barcode" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+        </div>
+        <div class="flex justify-end space-x-3 mt-4 pt-4 border-t border-slate-200">
+          <button type="button" (click)="closeVariantForm()" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Cancel</button>
+          <button type="submit" [disabled]="variantForm.invalid" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-slate-400">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  }
+
+  <!-- Voice Add Modal -->
+  @if (voiceAddState() !== 'idle') {
+  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 transition-opacity">
+    <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-2xl transform transition-all">
+      @switch (voiceAddState()) {
+      @case ('recording') {
+      <div class="text-center space-y-6">
+        <h3 class="text-2xl font-bold text-slate-800">Listening...</h3>
+        <p class="text-slate-600">Describe the new product, its variants, prices, costs, and stock levels.</p>
+        <div class="flex items-center justify-center space-x-3 text-red-500">
+          <span class="relative flex h-4 w-4">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span>
+          </span>
+          <span class="font-semibold">Recording...</span>
+        </div>
+        <button (click)="stopVoiceAdd()" class="mt-4 px-8 py-3 bg-red-600 text-white font-bold rounded-lg shadow-md hover:bg-red-700 transition-colors">Stop Recording</button>
+      </div>
+      }
+      @case ('processing') {
+      <div class="text-center space-y-4">
+        <svg class="animate-spin h-12 w-12 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="text-slate-600 text-lg font-semibold">Analyzing product details...</p>
+      </div>
+      }
+      @case ('confirming') {
+      <form [formGroup]="voiceConfirmForm" (ngSubmit)="confirmVoiceAdd()">
+        <h3 class="text-2xl font-bold text-slate-800 mb-4">Confirm New Product</h3>
+        <div class="space-y-6 bg-slate-50 p-6 rounded-lg border max-h-[60vh] overflow-y-auto">
+          <!-- Product Name -->
+          <div>
+            <label for="voiceProductName" class="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+            <input id="voiceProductName" type="text" formControlName="productName" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          
+          <!-- Variants -->
+          <div formArrayName="variants">
+            <h4 class="font-semibold mb-2 text-gray-700">Variants</h4>
+            @for (variantGroup of voiceConfirmVariants.controls; track $index; let i = $index) {
+              <div [formGroupName]="i" class="p-4 mb-3 bg-white border border-slate-200 rounded-md grid grid-cols-2 md:grid-cols-5 gap-4 items-end">
+                <!-- Variant Name -->
+                <div class="col-span-2 md:col-span-1">
+                  <label [for]="'variantName' + i" class="block text-xs font-medium text-gray-600 mb-1">Variant</label>
+                  <input [id]="'variantName' + i" type="text" formControlName="name" class="w-full text-sm px-2 py-1.5 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500">
+                </div>
+                <!-- Price -->
+                <div>
+                  <label [for]="'variantPrice' + i" class="block text-xs font-medium text-gray-600 mb-1">Price</label>
+                  <input [id]="'variantPrice' + i" type="number" step="0.01" formControlName="price" class="w-full text-sm px-2 py-1.5 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500">
+                </div>
+                <!-- Cost -->
+                <div>
+                  <label [for]="'variantCost' + i" class="block text-xs font-medium text-gray-600 mb-1">Cost</label>
+                  <input [id]="'variantCost' + i" type="number" step="0.01" formControlName="cost" class="w-full text-sm px-2 py-1.5 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500">
+                </div>
+                <!-- Stock -->
+                <div>
+                  <label [for]="'variantStock' + i" class="block text-xs font-medium text-gray-600 mb-1">Stock</label>
+                  <input [id]="'variantStock' + i" type="number" formControlName="stock" class="w-full text-sm px-2 py-1.5 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500">
+                </div>
+                <!-- Remove Button -->
+                <div class="flex items-center">
+                  <button type="button" (click)="removeVariantFromConfirmForm(i)" title="Remove variant" class="text-red-500 hover:text-red-700 transition-colors p-1.5 rounded-full hover:bg-red-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                  </button>
+                </div>
+              </div>
+            }
+             <button type="button" (click)="addVariantToConfirmForm()" class="mt-2 text-sm px-3 py-1.5 bg-blue-100 text-blue-800 font-semibold rounded-md hover:bg-blue-200 transition-colors">+ Add another variant</button>
+          </div>
+        </div>
+        <div class="flex justify-end space-x-3 mt-6">
+          <button type="button" (click)="cancelVoiceAdd()" class="px-6 py-2 bg-slate-200 text-slate-800 font-semibold rounded-lg hover:bg-slate-300 transition-colors">Cancel</button>
+          <button type="submit" [disabled]="voiceConfirmForm.invalid" class="px-6 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:bg-slate-400 transition-colors">Confirm and Add</button>
+        </div>
+      </form>
+      }
+      @case ('error') {
+      <div class="text-center space-y-4">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-red-500 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h3 class="text-xl font-semibold text-red-700">An Error Occurred</h3>
+        <p class="text-red-600 bg-red-50 p-3 rounded-md">{{ voiceAddError() }}</p>
+        <button (click)="cancelVoiceAdd()" class="mt-4 px-6 py-2 bg-slate-600 text-white font-semibold rounded-md hover:bg-slate-700 transition-colors">Close</button>
+      </div>
+      }
+      }
+    </div>
+  </div>
+  }
+</div>
