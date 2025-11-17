@@ -57,4 +57,12 @@ This project is designed to run in a web-based development environment that prov
     -   Open your web browser and go to `http://localhost:8000`.
     -   The VentiPOS application should now be running.
 
-> **Note**: Because this application is designed for a zoneless Angular environment and uses browser-native modules via an import map, no `npm install` or build step is required.
+## Development Environment & Dependencies
+
+This project is configured to run in a modern, "buildless" development environment. This means there are **no traditional installation steps** for dependencies.
+
+-   **No `npm install`**: There is no `package.json` file. All external libraries (like Angular, RxJS, and the Google Gemini SDK) are loaded directly in the browser from a CDN. This is handled by the `<script type="importmap">` tag in `index.html`.
+
+-   **TypeScript**: The project uses TypeScript, but you do not need to install `typescript` locally or run a build command (`tsc`). The development environment this app is designed for (like Google's AI Studio) handles the TypeScript-to-JavaScript transpilation automatically. When running with a simple local web server, modern browsers handle the necessary module loading.
+
+In short, the only prerequisites are a web browser and a local server to serve the files. No package manager or build tools are required.
