@@ -1,8 +1,9 @@
-import { Component, ChangeDetectionStrategy, inject, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal, computed } from '@angular/core';
 import { CommonModule, CurrencyPipe } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormArray } from '@angular/forms';
 import { InventoryService, Product, ProductVariant } from '../../services/inventory.service';
 import { GeminiService, ParsedInventoryImageResult, ParsedVoiceProduct, ParsedVariant } from '../../services/gemini.service';
+import { ToastService } from '../../services/toast.service';
 
 type VoiceAddState = 'idle' | 'recording' | 'processing' | 'confirming' | 'error';
 
@@ -15,9 +16,10 @@ type VoiceAddState = 'idle' | 'recording' | 'processing' | 'confirming' | 'error
 export class InventoryManagerComponent {
   inventoryService = inject(InventoryService);
   geminiService = inject(GeminiService);
+  toastService = inject(ToastService);
   fb: FormBuilder = inject(FormBuilder);
 
-  products = this.inventoryService.products;
+  private products = this.inventoryService.products;
   
   // State for forms and UI
   isProductFormOpen = signal(false);
@@ -27,6 +29,24 @@ export class InventoryManagerComponent {
   isVariantFormOpen = signal(false);
   editingVariant = signal<{ product: Product, variant: ProductVariant } | null>(null);
   variantForm: FormGroup;
+
+  // State for filtering
+  inventorySearchTerm = signal('');
+  showLowStockOnly = signal(false);
+
+  filteredProducts = computed(() => {
+    const term = this.inventorySearchTerm().toLowerCase();
+    const lowStockOnly = this.showLowStockOnly();
+
+    return this.products()
+      .map(product => {
+        if (!lowStockOnly) return product;
+        const lowStockVariants = product.variants.filter(v => v.stock <= 10);
+        return lowStockVariants.length > 0 ? { ...product, variants: lowStockVariants } : null;
+      })
+      .filter((p): p is Product => p !== null)
+      .filter(p => p.name.toLowerCase().includes(term));
+  });
 
   // State for image processing
   isProcessingImage = signal(false);
@@ -50,9 +70,9 @@ export class InventoryManagerComponent {
       id: [null],
       productId: [null, Validators.required],
       name: ['', Validators.required],
-      price: [0, [Validators.required, Validators.min(0)]],
+      price: [0, [Validators.required, Validators.min(0.01)]],
       cost: [0, [Validators.required, Validators.min(0)]],
-      stock: [0, [Validators.required, Validators.min(0)]],
+      stock: [0, [Validators.required, Validators.min(0), Validators.pattern('^[0-9]*$')]],
       barcode: [''],
     });
 
@@ -69,9 +89,9 @@ export class InventoryManagerComponent {
   createVariantGroup(variant: Partial<ParsedVariant> = {}): FormGroup {
     return this.fb.group({
       name: [variant.name ?? '', Validators.required],
-      price: [variant.price ?? 0, [Validators.required, Validators.min(0)]],
+      price: [variant.price ?? 0, [Validators.required, Validators.min(0.01)]],
       cost: [variant.cost ?? 0, [Validators.required, Validators.min(0)]],
-      stock: [variant.stock ?? 0, [Validators.required, Validators.min(0)]]
+      stock: [variant.stock ?? 0, [Validators.required, Validators.min(0), Validators.pattern('^[0-9]*$')]]
     });
   }
   
@@ -81,6 +101,15 @@ export class InventoryManagerComponent {
 
   removeVariantFromConfirmForm(index: number) {
     this.voiceConfirmVariants.removeAt(index);
+  }
+
+  // Filter Methods
+  onSearch(event: Event) {
+    this.inventorySearchTerm.set((event.target as HTMLInputElement).value);
+  }
+
+  onToggleLowStock(event: Event) {
+    this.showLowStockOnly.set((event.target as HTMLInputElement).checked);
   }
 
   // Product Methods
@@ -102,8 +131,10 @@ export class InventoryManagerComponent {
     const productData = this.productForm.value;
     if (this.editingProduct()) {
       this.inventoryService.updateProduct(this.editingProduct()!.id, productData);
+      this.toastService.showSuccess(`Product "${productData.name}" updated.`);
     } else {
       const newProduct = this.inventoryService.addProduct(productData);
+      this.toastService.showSuccess(`Product "${productData.name}" added.`);
       // Open variant form to add the first variant
       this.openNewVariantForm(newProduct);
     }
@@ -118,6 +149,7 @@ export class InventoryManagerComponent {
   deleteProduct(productId: number) {
     if (confirm('Are you sure you want to delete this product and all its variants?')) {
         this.inventoryService.deleteProduct(productId);
+        this.toastService.showSuccess('Product deleted.');
     }
   }
 
@@ -143,8 +175,10 @@ export class InventoryManagerComponent {
 
     if (this.editingVariant()) {
       this.inventoryService.updateVariant(productId, variantData);
+      this.toastService.showSuccess(`Variant "${variantData.name}" updated.`);
     } else {
       this.inventoryService.addVariant(productId, variantData);
+      this.toastService.showSuccess(`Variant "${variantData.name}" added.`);
     }
     this.closeVariantForm();
   }
@@ -157,6 +191,7 @@ export class InventoryManagerComponent {
   deleteVariant(productId: number, variantId: number) {
     if (confirm('Are you sure you want to delete this variant?')) {
         this.inventoryService.deleteVariant(productId, variantId);
+        this.toastService.showSuccess('Variant deleted.');
     }
   }
 
@@ -207,7 +242,7 @@ export class InventoryManagerComponent {
       
     if (stockUpdates.length > 0) {
         this.inventoryService.addStockToItems(stockUpdates);
-        alert(`${stockUpdates.length} item types added to stock.`);
+        this.toastService.showSuccess(`${stockUpdates.length} item types added to stock.`);
     }
     this.parsedImageResult.set(null);
   }
@@ -220,6 +255,7 @@ export class InventoryManagerComponent {
         cost: 0,
         stock: item.quantity
     });
+    this.toastService.showSuccess(`New product "${item.itemName}" created.`);
     this.parsedImageResult.update(res => {
         if (!res) return null;
         return {
@@ -297,6 +333,7 @@ export class InventoryManagerComponent {
   confirmVoiceAdd() {
     if (this.voiceConfirmForm.invalid) {
       this.voiceConfirmForm.markAllAsTouched();
+      this.toastService.showError('Please fix the errors before confirming.');
       return;
     };
 
@@ -310,6 +347,7 @@ export class InventoryManagerComponent {
         stock: variant.stock
       });
     }
+    this.toastService.showSuccess(`Product "${productData.productName}" added with ${productData.variants.length} variant(s).`);
     this.cancelVoiceAdd();
   }
 

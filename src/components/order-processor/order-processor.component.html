@@ -4,7 +4,7 @@
   <div class="bg-white rounded-xl shadow-md border border-slate-200 p-8 flex flex-col items-center justify-center transition-all duration-300 min-h-[280px]">
     @switch (state()) {
       @case ('idle') {
-        <div class="text-center space-y-4">
+        <div class="flex flex-col items-center text-center space-y-4">
           <h2 class="text-2xl font-semibold text-slate-800">Ready for New Order</h2>
           <p class="text-slate-500">Press the button to start recording the customer's order.</p>
           <button (click)="startRecording()" class="w-24 h-24 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-blue-500/30 flex items-center justify-center">
@@ -36,8 +36,8 @@
         </div>
       }
       @case ('finished') {
-         <div class="text-center space-y-4">
-          <h2 class="text-2xl font-semibold text-slate-800">Add to Order</h2>
+         <div class="flex flex-col items-center text-center space-y-4">
+          <h2 class="text-2xl font-semibold text-slate-800">{{ currentOrder().length > 0 ? 'Modify Order' : 'Start New Order' }}</h2>
           <p class="text-slate-500">Press the button to add more items or edit the current order via voice.</p>
           <button (click)="startRecording()" class="w-24 h-24 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-blue-500/30 flex items-center justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-10 h-10">
@@ -57,17 +57,33 @@
     }
   </div>
 
+  <!-- Frequently Ordered Quick Add -->
+  @if (frequentlyOrderedItems().length > 0) {
+    <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6">
+      <h3 class="text-lg font-semibold text-slate-700 mb-3">Frequently Ordered</h3>
+      <div class="flex flex-wrap gap-3">
+        @for (item of frequentlyOrderedItems(); track item.variantId) {
+          <button (click)="quickAddItem(item)" class="px-4 py-2 bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200 transition-colors flex items-center space-x-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+            <span>{{ item.name }}</span>
+          </button>
+        }
+      </div>
+    </div>
+  }
+
   <!-- Bottom Panel: Order Details -->
   <div class="bg-white rounded-xl shadow-md border border-slate-200 p-8">
     <h2 class="text-2xl font-bold text-slate-800 border-b border-slate-200 pb-4 mb-6">Current Order</h2>
     
     <div class="mb-6">
         <label for="barcode" class="block text-sm font-medium text-slate-700 mb-1">Add by Barcode</label>
-        <div class="relative mt-1 max-w-sm">
-            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
-            </div>
-            <input type="text" id="barcode" #barcodeInput (change)="addItemByBarcode(barcodeInput.value); barcodeInput.value = ''" class="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Scan or enter item code...">
+        <div class="flex items-center space-x-2 max-w-sm">
+            <input type="text" id="barcode" #barcodeInput (change)="addItemByBarcode(barcodeInput.value); barcodeInput.value = ''" class="flex-grow pl-3 pr-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Enter item code...">
+            <button (click)="startScanner()" class="px-4 py-2 bg-slate-700 text-white font-semibold rounded-lg shadow-sm hover:bg-slate-800 transition-colors flex items-center space-x-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM5 13a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zm10 0a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2h-2z" clip-rule="evenodd" /></svg>
+              <span>Scan</span>
+            </button>
         </div>
     </div>
 
@@ -230,11 +246,11 @@
                     title="Clear all items from the current order">
               Clear Order
             </button>
-            <button (click)="finalizeOrder()" 
+            <button (click)="openPaymentModal()" 
                     [disabled]="currentOrder().length === 0 || ambiguousItems().length > 0" 
                     [class]="finalizeButtonClass()"
                     [title]="finalizeButtonTitle()">
-              Finalize Transaction
+              Proceed to Payment
             </button>
           </div>
         }
@@ -242,3 +258,38 @@
     }
   </div>
 </div>
+
+<!-- Barcode Scanner Modal -->
+@if (isScanning()) {
+  <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg relative">
+      <h3 class="text-xl font-semibold mb-4">Scan Barcode</h3>
+      <video #videoElement class="w-full h-auto rounded-lg bg-slate-200"></video>
+      <button (click)="stopScanner()" class="mt-4 px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 w-full">Cancel</button>
+    </div>
+  </div>
+}
+
+<!-- Payment Modal -->
+@if (isPaymentModalOpen()) {
+  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-md transform transition-all">
+      <h3 class="text-2xl font-bold text-slate-800 mb-2">Confirm Payment</h3>
+      <p class="text-slate-500 mb-6">Finalize the transaction for the following amount.</p>
+      
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center mb-6">
+        <p class="text-sm font-medium text-blue-700">Total Amount Due</p>
+        <p class="text-5xl font-extrabold text-blue-800 tracking-tight mt-1">${{ grandTotal() | number: '1.2-2' }}</p>
+      </div>
+
+      <div class="space-y-4">
+        <button (click)="confirmPayment()" class="w-full px-6 py-4 bg-emerald-600 text-white font-bold rounded-lg shadow-md hover:bg-emerald-700 transition-colors text-lg flex items-center justify-center space-x-2">
+          <span>Confirm Payment</span>
+        </button>
+        <button (click)="isPaymentModalOpen.set(false)" class="w-full px-6 py-3 bg-slate-200 text-slate-800 font-semibold rounded-lg hover:bg-slate-300 transition-colors">
+          Back to Order
+        </button>
+      </div>
+    </div>
+  </div>
+}

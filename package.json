@@ -16,6 +16,7 @@
     "@angular/forms": "^20.3.7",
     "@google/genai": "^1.27.0",
     "@angular/common": "^20.3.0",
+    "@zxing/browser": "0.1.5",
     "@angular/build": "^20.3.0",
     "@angular/cli": "^20.3.0",
     "@angular/compiler-cli": "^20.3.0",

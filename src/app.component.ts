@@ -6,6 +6,7 @@ import { InventoryManagerComponent } from './components/inventory-manager/invent
 import { OrderHistoryComponent } from './components/order-history/order-history.component';
 import { SalesAnalyticsComponent } from './components/sales-analytics/sales-analytics.component';
 import { CustomerManagementComponent } from './components/customer-management/customer-management.component';
+import { ToastComponent } from './components/toast/toast.component';
 
 type Tab = 'pos' | 'inventory' | 'history' | 'analytics' | 'customers';
 
@@ -19,6 +20,7 @@ type Tab = 'pos' | 'inventory' | 'history' | 'analytics' | 'customers';
     OrderHistoryComponent,
     SalesAnalyticsComponent,
     CustomerManagementComponent,
+    ToastComponent,
   ],
   template: `
     <div class="min-h-screen bg-slate-100 font-sans">
@@ -68,6 +70,7 @@ type Tab = 'pos' | 'inventory' | 'history' | 'analytics' | 'customers';
         <p>Powered by Angular and Google Gemini</p>
       </footer>
     </div>
+    <app-toast />
   `,
 })
 export class AppComponent {

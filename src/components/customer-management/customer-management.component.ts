@@ -1,11 +1,12 @@
 import { Component, ChangeDetectionStrategy, inject, signal, computed } from '@angular/core';
-import { CurrencyPipe, DatePipe } from '@angular/common';
-import { CustomerService } from '../../services/customer.service';
+import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
+import { CustomerService, Customer } from '../../services/customer.service';
+import { OrderService, Order } from '../../services/order.service';
 
 @Component({
   selector: 'app-customer-management',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CurrencyPipe, DatePipe],
+  imports: [CurrencyPipe, DatePipe, CommonModule],
   template: `
     <div class="bg-white p-8 rounded-xl shadow-md border border-slate-200">
       <div class="flex justify-between items-center border-b border-slate-200 pb-4 mb-6">
@@ -35,7 +36,7 @@ import { CustomerService } from '../../services/customer.service';
           </thead>
           <tbody class="text-gray-700 divide-y divide-slate-200">
             @for (customer of filteredCustomers(); track customer.id; let isOdd = $odd) {
-              <tr class="hover:bg-slate-100" [class.bg-slate-50]="isOdd">
+              <tr (click)="viewCustomerDetails(customer)" class="hover:bg-slate-100 cursor-pointer" [class.bg-slate-50]="isOdd">
                 <td class="py-3 px-4">{{ customer.id }}</td>
                 <td class="py-3 px-4 font-medium">{{ customer.name }}</td>
                 <td class="py-3 px-4">{{ customer.totalOrders }}</td>
@@ -54,11 +55,75 @@ import { CustomerService } from '../../services/customer.service';
         </table>
       </div>
     </div>
+
+    <!-- Customer Detail Modal -->
+    @if (isDetailModalOpen() && selectedCustomer(); as customer) {
+      <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl transform transition-all">
+          <div class="flex justify-between items-center pb-3 border-b border-slate-200">
+            <h3 class="text-xl font-semibold">{{ customer.name }}</h3>
+            <button (click)="isDetailModalOpen.set(false)" class="text-slate-400 hover:text-slate-600">&times;</button>
+          </div>
+          <div class="mt-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 bg-slate-50 p-4 rounded-lg">
+              <div>
+                <p class="text-sm text-slate-500">Total Orders</p>
+                <p class="font-bold text-lg text-slate-800">{{ customer.totalOrders }}</p>
+              </div>
+              <div>
+                <p class="text-sm text-slate-500">Total Spent</p>
+                <p class="font-bold text-lg text-slate-800">{{ customer.totalSpent | currency }}</p>
+              </div>
+              <div>
+                <p class="text-sm text-slate-500">First Seen</p>
+                <p class="font-bold text-lg text-slate-800">{{ customer.firstSeen | date:'shortDate' }}</p>
+              </div>
+              <div>
+                <p class="text-sm text-slate-500">Last Seen</p>
+                <p class="font-bold text-lg text-slate-800">{{ customer.lastSeen | date:'shortDate' }}</p>
+              </div>
+            </div>
+            <h4 class="text-lg font-semibold mb-2">Order History</h4>
+            <div class="max-h-80 overflow-y-auto border rounded-lg">
+              <table class="min-w-full">
+                <thead class="bg-slate-50 sticky top-0">
+                  <tr>
+                    <th class="py-2 px-3 text-left text-xs font-semibold text-gray-600 uppercase">Order ID</th>
+                    <th class="py-2 px-3 text-left text-xs font-semibold text-gray-600 uppercase">Date</th>
+                    <th class="py-2 px-3 text-left text-xs font-semibold text-gray-600 uppercase">Items</th>
+                    <th class="py-2 px-3 text-right text-xs font-semibold text-gray-600 uppercase">Total</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y">
+                  @for (order of selectedCustomerOrders(); track order.id) {
+                    <tr class="hover:bg-slate-50">
+                      <td class="py-2 px-3 text-sm">{{ order.id }}</td>
+                      <td class="py-2 px-3 text-sm">{{ order.timestamp | date:'short' }}</td>
+                      <td class="py-2 px-3 text-sm">{{ order.items.length }}</td>
+                      <td class="py-2 px-3 text-right font-medium text-sm">{{ order.grandTotal | currency }}</td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="4" class="text-center p-6 text-slate-500">No orders for this customer.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+             <div class="flex justify-end mt-6">
+                <button (click)="isDetailModalOpen.set(false)" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300">Close</button>
+             </div>
+          </div>
+        </div>
+      </div>
+    }
   `,
 })
 export class CustomerManagementComponent {
   customerService = inject(CustomerService);
+  orderService = inject(OrderService);
   searchTerm = signal('');
+  
+  selectedCustomer = signal<Customer | null>(null);
+  isDetailModalOpen = signal(false);
 
   filteredCustomers = computed(() => {
     const term = this.searchTerm().toLowerCase().trim();
@@ -71,7 +136,18 @@ export class CustomerManagementComponent {
     );
   });
 
+  selectedCustomerOrders = computed(() => {
+      const customer = this.selectedCustomer();
+      if (!customer) return [];
+      return this.orderService.orderHistory().filter(o => o.customerId === customer.id);
+  });
+
   onSearch(event: Event) {
     this.searchTerm.set((event.target as HTMLInputElement).value);
+  }
+
+  viewCustomerDetails(customer: Customer) {
+    this.selectedCustomer.set(customer);
+    this.isDetailModalOpen.set(true);
   }
 }

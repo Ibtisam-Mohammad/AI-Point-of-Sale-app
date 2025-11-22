@@ -1,9 +1,12 @@
-import { Component, ChangeDetectionStrategy, signal, computed, inject } from '@angular/core';
+import { Component, ChangeDetectionStrategy, signal, computed, inject, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GeminiService } from '../../services/gemini.service';
 import { InventoryService, Product, ProductVariant } from '../../services/inventory.service';
-import { OrderService } from '../../services/order.service';
+import { OrderService, OrderItem } from '../../services/order.service';
 import { PosStateService, Ambiguity } from '../../services/pos-state.service';
+import { ToastService } from '../../services/toast.service';
+// FIX: Removed NotFoundException as it's not exported by this module. The error will be checked by its name property instead.
+import { BrowserMultiFormatReader } from '@zxing/browser';
 
 type RecordingState = 'idle' | 'recording' | 'processing' | 'finished' | 'error';
 
@@ -18,6 +21,10 @@ export class OrderProcessorComponent {
   private inventoryService = inject(InventoryService);
   private orderService = inject(OrderService);
   private posStateService = inject(PosStateService);
+  private toastService = inject(ToastService);
+
+  @ViewChild('videoElement') videoElement?: ElementRef<HTMLVideoElement>;
+  private codeReader = new BrowserMultiFormatReader();
 
   state = signal<RecordingState>('idle');
   errorMessage = signal('');
@@ -31,8 +38,30 @@ export class OrderProcessorComponent {
   lastTranscript = this.posStateService.lastTranscript;
   grandTotal = this.posStateService.grandTotal;
 
+  // Local UI state
+  isScanning = signal(false);
+  isPaymentModalOpen = signal(false);
+  
   private mediaRecorder: MediaRecorder | null = null;
   private audioChunks: Blob[] = [];
+
+  frequentlyOrderedItems = computed(() => {
+    const stats = new Map<number, { orderItem: OrderItem, quantity: number }>();
+    for (const order of this.orderService.orderHistory()) {
+      for (const item of order.items) {
+        const existing = stats.get(item.variantId);
+        if (existing) {
+          existing.quantity += item.quantity;
+        } else {
+          stats.set(item.variantId, { orderItem: item, quantity: item.quantity });
+        }
+      }
+    }
+    return Array.from(stats.values())
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5)
+      .map(s => s.orderItem);
+  });
 
   stockErrorMessage = computed(() => {
     const issues = this.inventoryService.checkStockAvailability(this.currentOrder());
@@ -159,9 +188,53 @@ export class OrderProcessorComponent {
     const item = this.inventoryService.findItemByBarcode(barcode);
     if (item) {
       this.posStateService.addItemToOrder(item.product, item.variant, 1);
+      this.toastService.showSuccess(`${item.product.name} added.`);
       this.state.set('finished');
     } else {
-      alert('Barcode not found in inventory.');
+      this.toastService.showError('Barcode not found in inventory.');
+    }
+  }
+
+  async startScanner() {
+    this.isScanning.set(true);
+    try {
+      // Timeout to allow the view to update and the video element to be available
+      await new Promise(resolve => setTimeout(resolve, 0)); 
+      if (!this.videoElement) {
+        throw new Error('Video element not found');
+      }
+      this.codeReader.decodeFromVideoDevice(undefined, this.videoElement.nativeElement, (result, err: any) => {
+        if (result) {
+          this.addItemByBarcode(result.getText());
+          this.stopScanner();
+        }
+        // FIX: Check for NotFoundException by its name property, as the type is not exported.
+        if (err && err.name !== 'NotFoundException') {
+          console.error(err);
+          this.toastService.showError('Error while scanning.');
+          this.stopScanner();
+        }
+      });
+    } catch (error) {
+      console.error('Error starting scanner:', error);
+      this.toastService.showError('Could not start camera. Check permissions.');
+      this.isScanning.set(false);
+    }
+  }
+
+  stopScanner() {
+    // FIX: The 'reset()' method is the correct way to stop the camera stream and reset the reader state.
+    // Casting to 'any' to bypass a potential typings issue where the method is not found on the BrowserMultiFormatReader type.
+    (this.codeReader as any).reset();
+    this.isScanning.set(false);
+  }
+
+  quickAddItem(item: OrderItem) {
+    const product = this.inventoryService.getProductById(item.productId);
+    const variant = this.inventoryService.getVariantById(item.productId, item.variantId);
+    if (product && variant) {
+      this.posStateService.addItemToOrder(product, variant, 1);
+      this.toastService.showSuccess(`${item.name} added.`);
     }
   }
   
@@ -195,12 +268,15 @@ export class OrderProcessorComponent {
     this.posStateService.dismissAmbiguity(term);
   }
 
-  finalizeOrder() {
+  openPaymentModal() {
     if (this.currentOrder().length === 0 || this.ambiguousItems().length > 0 || this.stockErrorMessage()) {
-        alert("Cannot finalize order. Please check for errors (empty order, ambiguities, or stock issues).");
+        this.toastService.showError("Cannot finalize order. Check for errors.");
         return;
     }
-    
+    this.isPaymentModalOpen.set(true);
+  }
+  
+  confirmPayment() {
     const stockUpdates = this.currentOrder().map(item => ({ variantId: item.variantId, quantity: item.quantity }));
     this.inventoryService.updateStock(stockUpdates);
 
@@ -211,7 +287,9 @@ export class OrderProcessorComponent {
         this.customerName(),
         this.notes()
     );
-
+    
+    this.toastService.showSuccess(`Order #${this.orderService.orderHistory()[0].id} finalized.`);
+    this.isPaymentModalOpen.set(false);
     this.clearAndResetUi();
   }
 
